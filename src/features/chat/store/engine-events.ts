@@ -9,6 +9,7 @@ import {
 import { errorText } from "@/lib/errors";
 import { pendingWorkspaceOfKey, dedupeTabs, persistTabs, sessionKey } from "./persistence";
 import { migrateSessionContributions } from "./session-contributions";
+import { moveComposerAttachments } from "./attachments";
 import { migrateAutoCompactSettings } from "../auto-compact-context";
 import {
   EMPTY_SESSION,
@@ -1001,6 +1002,14 @@ function onSession(
       if (drafts[newKey] === undefined) drafts[newKey] = drafts[fromKey];
       delete drafts[fromKey];
     }
+    // Pending attachments follow their tab the same way the draft does: the
+    // composer reads the native key afterwards, so chips left under `new:`
+    // would vanish from the very conversation that sent them.
+    const composerAttachments = moveComposerAttachments(
+      s.composerAttachments,
+      fromKey,
+      newKey,
+    );
     const streamingByKey = moveStreamingFlag(s.streamingByKey, fromKey, newKey);
     const retryingByKey = moveRetryingFlag(s.retryingByKey, fromKey, newKey);
     const activeNext =
@@ -1010,7 +1019,14 @@ function onSession(
       s.active.workspacePath === workspacePath
         ? { ...s.active, sessionId: nativeId, effort: undefined, provider: undefined }
         : s.active;
-    return { bySession, drafts, streamingByKey, retryingByKey, active: activeNext };
+    return {
+      bySession,
+      drafts,
+      composerAttachments,
+      streamingByKey,
+      retryingByKey,
+      active: activeNext,
+    };
   });
   // The pending tab owning this run adopts the native id. Stamp only the
   // first match: blanketing every pending tab of this engine+workspace
